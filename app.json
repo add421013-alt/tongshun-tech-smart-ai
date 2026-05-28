@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TIM BRIGHT AI",
+    "name": "統順 Tech Smart AI",
     "slug": "tongshun-tech-smart-ai",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -20,6 +20,10 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "splash": {
+        "backgroundColor": "#06101F",
+        "resizeMode": "contain"
       }
     },
     "android": {
@@ -28,6 +32,10 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/app/logo/app-icon.png",
         "backgroundColor": "#06101F"
+      },
+      "splash": {
+        "backgroundColor": "#06101F",
+        "resizeMode": "contain"
       }
     },
     "web": {
@@ -38,6 +46,7 @@
         "projectId": "9f8deaac-4b7f-4492-91f9-94d58fb9c1fe"
       }
     },
-    "owner": "cleanfit628"
+    "owner": "cleanfit628",
+    "backgroundColor": "#06101F"
   }
 }

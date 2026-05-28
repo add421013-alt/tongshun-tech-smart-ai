@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -299,8 +299,17 @@ function Header() {
 }
 
 function HomeScreen({ openProduct, goTab }) {
-  const heroProduct = products[0];
+  const [heroIndex, setHeroIndex] = useState(0);
+  const heroProduct = products[heroIndex % products.length];
   const heroColor = heroProduct.colors[0];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % products.length);
+    }, 3500);
+
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <View>
@@ -313,7 +322,10 @@ function HomeScreen({ openProduct, goTab }) {
         <Text style={styles.eyebrow}>{appInfo.slogan}</Text>
         <Text style={styles.heroTitle}>AI 智慧眼鏡{'\n'}讓溝通更高效</Text>
         <Text style={styles.heroDesc}>
-          以智慧音訊眼鏡為核心，整合 AI 客服、產品導覽、教學影片與專人預約，打造更專業的智慧生活入口。
+          正在展示：{heroProduct.id}｜{heroProduct.name}
+        </Text>
+        <Text style={styles.heroDescSmall}>
+          以智慧音訊眼鏡為核心，整合 AI 客服、產品導覽、教學影片與專人預約。
         </Text>
 
         <Image source={heroColor.hero} style={styles.heroImage} resizeMode="contain" />
@@ -1142,6 +1154,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#101935',
     marginBottom: 18,
   },
+
+  heroDescSmall: {
+    color: '#94A3B8',
+    fontSize: 14,
+    lineHeight: 22,
+    marginTop: 8,
+    marginBottom: 16,
+  },
+
   heroActions: {
     flexDirection: 'row',
     gap: 12,
@@ -1790,7 +1811,10 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginBottom: 12,
     backgroundColor: '#1E88FF',
-    borderRadius: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 8,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     padding: 16,
     maxWidth: '82%',
     shadowColor: '#1E88FF',
@@ -1806,12 +1830,15 @@ const styles = StyleSheet.create({
   botBubble: {
     alignSelf: 'flex-start',
     marginBottom: 14,
-    backgroundColor: 'rgba(16,33,61,0.94)',
-    borderRadius: 24,
+    backgroundColor: 'rgba(16,33,61,0.96)',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 24,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
     padding: 16,
     maxWidth: '88%',
     borderWidth: 1,
-    borderColor: 'rgba(69,163,255,0.22)',
+    borderColor: 'rgba(69,163,255,0.24)',
   },
   botLabel: {
     color: '#45A3FF',
@@ -1826,12 +1853,16 @@ const styles = StyleSheet.create({
   aiActionButton: {
     marginTop: 12,
     alignSelf: 'flex-start',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
     borderRadius: 999,
-    backgroundColor: 'rgba(30,136,255,0.18)',
+    backgroundColor: 'rgba(30,136,255,0.22)',
     borderWidth: 1,
-    borderColor: 'rgba(69,163,255,0.32)',
+    borderColor: 'rgba(140,203,255,0.38)',
+    shadowColor: '#1E88FF',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
   aiActionButtonText: {
     color: '#8CCBFF',

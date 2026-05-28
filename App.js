@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Image,
   Linking,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +22,7 @@ import {
   products,
   videos,
 } from './src/data/appData';
+import { answerAiQuestion } from './src/data/aiKnowledge';
 
 const NAV = [
   ['home', '首頁'],
@@ -33,6 +35,33 @@ const NAV = [
 export default function App() {
   const [entered, setEntered] = useState(false);
   const [tab, setTab] = useState('home');
+
+  const swipeTabs = ['home', 'products', 'videos', 'ai', 'booking'];
+
+  const goSwipeTab = (direction) => {
+    if (selectedProduct || selectedVideo) return;
+
+    const currentIndex = swipeTabs.indexOf(tab);
+    const nextIndex = currentIndex + direction;
+
+    if (nextIndex >= 0 && nextIndex < swipeTabs.length) {
+      setTab(swipeTabs[nextIndex]);
+    }
+  };
+
+  const pageSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) => {
+          return Math.abs(gesture.dx) > 45 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4;
+        },
+        onPanResponderRelease: (_, gesture) => {
+          if (gesture.dx < -55) goSwipeTab(1);
+          if (gesture.dx > 55) goSwipeTab(-1);
+        },
+      }),
+    [tab, selectedProduct, selectedVideo]
+  );
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [selectedColor, setSelectedColor] = useState(0);
@@ -70,14 +99,27 @@ export default function App() {
     if (!question) return;
 
     const matched = aiQuickQuestions.find(([q]) => question.includes(q.replace('？', '')));
-    const answer = matched
-      ? matched[1]
-      : '這個問題我可以先提供初步協助。若涉及正式產品規格、價格、試戴、企業合作或售後服務，建議透過預約或真人客服確認。';
+    const answer = matched ? matched[1] : answerAiQuestion(question);
+    const actionMap = [
+      { regex: /藍牙|藍芽|連線|配對|連不上|斷線/, label: '查看開機與連線教學', type: 'video', keyword: '連線' },
+      { regex: /充電|電量|續航|沒電|充不進去/, label: '查看充電使用教學', type: 'video', keyword: '充電' },
+      { regex: /配戴|佩戴|舒適|太緊|太鬆|調整/, label: '查看舒適度調整教學', type: 'video', keyword: '舒適' },
+      { regex: /鏡腿|拆卸|更換|替換/, label: '查看鏡腿拆卸教學', type: 'video', keyword: '鏡腿' },
+      { regex: /故障|壞掉|保固|維修|修理|換新/, label: '前往預約 / 聯繫客服', type: 'booking' },
+      { regex: /企業|採購|團購|大量|通路|合作/, label: '前往企業採購預約', type: 'booking' },
+      { regex: /預約|試戴|了解|專人|聯絡|聯繫/, label: '前往預約了解', type: 'booking' },
+    ];
+
+    const matchedAction = actionMap.find((item) => item.regex.test(question));
 
     setAiMessages((prev) => [
       ...prev,
       { from: 'user', text: question },
-      { from: 'bot', text: answer },
+      {
+        from: 'bot',
+        text: answer,
+        action: matchedAction || null,
+      },
     ]);
     setAiInput('');
   };
@@ -143,6 +185,22 @@ ${form.note || '未填寫'}
           setTab('booking');
           resetDetail();
         }}
+        askAiAboutProduct={() => {
+          setTab('ai');
+          setAiMessages((prev) => [
+            ...prev,
+            {
+              from: 'user',
+              text: `我想了解 ${selectedProduct.id} ${selectedProduct.name}`,
+            },
+            {
+              from: 'bot',
+              text: answerAiQuestion(selectedProduct.id),
+              action: { label: '前往預約了解此款', type: 'booking' },
+            },
+          ]);
+          resetDetail();
+        }}
       />
     );
   } else if (selectedVideo) {
@@ -163,6 +221,11 @@ ${form.note || '未填寫'}
         aiMessages={aiMessages}
         sendAiQuestion={sendAiQuestion}
         goBooking={() => setTab('booking')}
+        openTeachingVideo={(keyword) => {
+          const target = videos.find((v) => v.title.includes(keyword) || v.desc.includes(keyword)) || videos[0];
+          setSelectedVideo(target);
+        }}
+        goBooking={() => setTab('booking')}
       />
     );
   } else {
@@ -181,6 +244,9 @@ ${form.note || '未填寫'}
 
   return (
     <SafeAreaView style={styles.safe}>
+      <View style={styles.globalGlowTop} />
+      <View style={styles.globalGlowBottom} />
+      <View style={styles.gridOverlay} />
       <StatusBar style="light" />
       <View style={styles.app}>
         <Header />
@@ -198,8 +264,11 @@ ${form.note || '未填寫'}
       <View style={styles.splashOrbOne} />
       <View style={styles.splashOrbTwo} />
       <View style={styles.splashPanel}>
-        <Image source={logo} style={styles.splashLogo} resizeMode="contain" />
-        <Text style={styles.splashTitle}>{appInfo.name}</Text>
+        <View style={styles.splashTsBadge}>
+          <Text style={styles.splashTsText}>TS</Text>
+        </View>
+        <Text style={styles.splashTitle}>統順光學</Text>
+        <Text style={styles.splashEnglish}>TONG SHUN OPTICAL</Text>
         <Text style={styles.splashSlogan}>{appInfo.slogan}</Text>
         <View style={styles.splashDivider} />
         <Text style={styles.splashHint}>點一下進入智慧穿戴世界</Text>
@@ -211,7 +280,17 @@ ${form.note || '未填寫'}
 function Header() {
   return (
     <View style={styles.header}>
-      <Image source={logo} style={styles.headerLogo} resizeMode="contain" />
+      <View style={styles.headerBrandWrap}>
+        <View style={styles.headerTsBadge}>
+          <Text style={styles.headerTsText}>TS</Text>
+        </View>
+
+        <View style={styles.headerBrandTextWrap}>
+          <Text style={styles.headerBrandTitle}>統順光學</Text>
+          <Text style={styles.headerBrandSub}>TONG SHUN OPTICAL</Text>
+        </View>
+      </View>
+
       <View style={styles.versionBadge}>
         <Text style={styles.versionBadgeText}>v{appInfo.version}</Text>
       </View>
@@ -227,6 +306,10 @@ function HomeScreen({ openProduct, goTab }) {
     <View>
       <View style={styles.heroCard}>
         <View style={styles.heroGlow} />
+        <View style={styles.techLineOne} />
+        <View style={styles.techLineTwo} />
+        <View style={styles.techDotOne} />
+        <View style={styles.techDotTwo} />
         <Text style={styles.eyebrow}>{appInfo.slogan}</Text>
         <Text style={styles.heroTitle}>AI 智慧眼鏡{'\n'}讓溝通更高效</Text>
         <Text style={styles.heroDesc}>
@@ -259,6 +342,15 @@ function HomeScreen({ openProduct, goTab }) {
       </ScrollView>
 
       <SectionTitle title="智慧體驗" sub="從產品了解、使用教學到客服預約，一站完成" />
+
+      <View style={styles.flowCard}>
+        {['看產品', '看教學', '問 AI', '預約'].map((item, index) => (
+          <View key={item} style={styles.flowItem}>
+            <Text style={styles.flowNumber}>0{index + 1}</Text>
+            <Text style={styles.flowText}>{item}</Text>
+          </View>
+        ))}
+      </View>
 
       <View style={styles.featureGrid}>
         {[
@@ -297,9 +389,11 @@ function HomeScreen({ openProduct, goTab }) {
           <Image source={item.colors[0].hero} style={styles.productHero} resizeMode="cover" />
 
           <View style={styles.productBody}>
-            <Text style={styles.productCode}>{item.id}</Text>
+            <View style={styles.productTopRow}>
+              <Text style={styles.productCode}>{item.id}</Text>
+              <Text style={styles.seriesBadge}>{item.series}</Text>
+            </View>
             <Text style={styles.productName}>{item.name}</Text>
-            <Text style={styles.seriesBadge}>{item.series}</Text>
             <Text style={styles.productDesc}>{item.desc}</Text>
 
             <View style={styles.chipWrap}>
@@ -318,7 +412,7 @@ function HomeScreen({ openProduct, goTab }) {
   );
 }
 
-function ProductDetail({ product, colorData, colorIndex, setColorIndex, onBack, goBooking }) {
+function ProductDetail({ product, colorData, colorIndex, setColorIndex, onBack, goBooking, askAiAboutProduct }) {
   return (
     <View>
       <TouchableOpacity style={styles.backButton} onPress={onBack}>
@@ -386,6 +480,10 @@ function ProductDetail({ product, colorData, colorIndex, setColorIndex, onBack, 
           </Text>
         </View>
 
+        <TouchableOpacity style={styles.secondaryFullButton} onPress={askAiAboutProduct}>
+          <Text style={styles.secondaryFullButtonText}>詢問 AI 此款適不適合我</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.primaryButton} onPress={goBooking}>
           <Text style={styles.primaryButtonText}>預約了解此款</Text>
         </TouchableOpacity>
@@ -435,8 +533,15 @@ function ProductDetail({ product, colorData, colorIndex, setColorIndex, onBack, 
           </TouchableOpacity>
         ))}
 
+      <View style={styles.assistNotice}>
+        <Text style={styles.assistNoticeTitle}>看完還是不確定？</Text>
+        <Text style={styles.assistNoticeText}>
+          可以直接詢問 AI 客服，或留下預約資訊由專人協助。
+        </Text>
+      </View>
+
       <TouchableOpacity style={styles.primaryButton} onPress={() => goTab('booking')}>
-        <Text style={styles.primaryButtonText}>看完教學，預約了解</Text>
+        <Text style={styles.primaryButtonText}>預約專人協助</Text>
       </TouchableOpacity>
     </View>
   );
@@ -486,12 +591,15 @@ function AIScreen({
   aiMessages,
   sendAiQuestion,
   goBooking,
+  openTeachingVideo,
 }) {
+  const chatScrollRef = useRef(null);
+
   return (
     <View>
       <PageHeader
         title="AI 客服"
-        desc="可輸入問題，也可點選快捷問題快速了解產品與服務。"
+        desc="可詢問產品推薦、連線教學、保固售後、企業採購與預約方式。"
       />
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickRail}>
@@ -511,13 +619,29 @@ function AIScreen({
         ))}
       </ScrollView>
 
-      <ScrollView style={styles.chatPanel} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={chatScrollRef}
+        style={styles.chatPanel}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => chatScrollRef.current?.scrollToEnd({ animated: true })}
+      >
         {aiMessages.map((msg, index) => (
           <View key={index} style={msg.from === 'user' ? styles.userBubble : styles.botBubble}>
             {msg.from === 'bot' && <Text style={styles.botLabel}>Tech Smart AI</Text>}
             <Text style={msg.from === 'user' ? styles.userBubbleText : styles.botBubbleText}>
               {msg.text}
             </Text>
+            {msg.action && (
+              <TouchableOpacity style={styles.aiActionButton} onPress={() => {
+                  if (msg.action.type === 'booking') {
+                    goBooking();
+                  } else {
+                    openTeachingVideo(msg.action.keyword);
+                  }
+                }}>
+                <Text style={styles.aiActionButtonText}>{msg.action.label}</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ))}
       </ScrollView>
@@ -555,7 +679,7 @@ function AIScreen({
     <View>
       <PageHeader
         title="預約了解"
-        desc="留下聯絡資訊與需求，專人將依客服時間協助回覆。"
+        desc="填寫後會整理成 Email 預約內容，請確認後寄出給專人。"
       />
 
       <StepCard title="STEP 1｜填寫聯絡資訊" />
@@ -604,8 +728,15 @@ function AIScreen({
         ))}
       </View>
 
+      <View style={styles.bookingNotice}>
+        <Text style={styles.bookingNoticeTitle}>送出後會開啟 Email</Text>
+        <Text style={styles.bookingNoticeText}>
+          系統會將您填寫的預約資訊整理成信件，請確認內容後寄出給專人。
+        </Text>
+      </View>
+
       <TouchableOpacity style={styles.primaryButton} onPress={submitBooking}>
-        <Text style={styles.primaryButtonText}>確認預約內容</Text>
+        <Text style={styles.primaryButtonText}>確認並開啟 Email 預約</Text>
       </TouchableOpacity>
 
       <SupportCard />
@@ -669,11 +800,12 @@ function SupportCard() {
   );
 }
 
+
 function BottomTabs({ tab, setTab }) {
   return (
     <View style={styles.tabs}>
       {NAV.map(([key, label]) => (
-        <TouchableOpacity key={key} style={styles.tabItem} onPress={() => setTab(key)}>
+        <TouchableOpacity key={key} style={styles.tabItem} onPress={() => setTab(key)} activeOpacity={0.85}>
           <Text style={[styles.tabIcon, tab === key && styles.tabIconActive]}>
             {key === 'home' ? '⌂' : key === 'products' ? '◇' : key === 'videos' ? '▶' : key === 'ai' ? 'AI' : '＋'}
           </Text>
@@ -683,7 +815,39 @@ function BottomTabs({ tab, setTab }) {
       ))}
     </View>
   );
-}const styles = StyleSheet.create({
+}
+
+const styles = StyleSheet.create({
+
+  globalGlowTop: {
+    position: 'absolute',
+    top: -120,
+    right: -80,
+    width: 320,
+    height: 320,
+    borderRadius: 200,
+    backgroundColor: 'rgba(30,136,255,0.12)',
+  },
+  globalGlowBottom: {
+    position: 'absolute',
+    bottom: -160,
+    left: -120,
+    width: 340,
+    height: 340,
+    borderRadius: 220,
+    backgroundColor: 'rgba(69,163,255,0.08)',
+  },
+  gridOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderColor: 'rgba(255,255,255,0.015)',
+    borderWidth: 0.4,
+    opacity: 0.25,
+  },
+
   safe: {
     flex: 1,
     backgroundColor: '#06101F',
@@ -730,9 +894,39 @@ function BottomTabs({ tab, setTab }) {
     padding: 30,
     backgroundColor: 'rgba(11,18,40,0.92)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(69,163,255,0.22)',
     alignItems: 'center',
   },
+
+  splashTsBadge: {
+    width: 92,
+    height: 92,
+    borderRadius: 28,
+    backgroundColor: '#0B2A5B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  splashTsText: {
+    color: '#FFFFFF',
+    fontSize: 40,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  splashEnglish: {
+    color: '#60A5FA',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 3,
+    marginBottom: 12,
+  },
+
   splashLogo: {
     width: 220,
     height: 96,
@@ -774,6 +968,61 @@ function BottomTabs({ tab, setTab }) {
     alignItems: 'center',
   },
   
+  
+  headerBrandWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  headerTsBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#0B2A5B',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+
+    shadowColor: '#3B82F6',
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+
+  headerTsText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  headerBrandTextWrap: {
+    justifyContent: 'center',
+  },
+
+  headerBrandTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  headerBrandSub: {
+    color: '#60A5FA',
+    fontSize: 10,
+    marginTop: 2,
+    letterSpacing: 2,
+    fontWeight: '600',
+  },
+
+
   headerLogo: {
   width: 62,
   height: 62,
@@ -785,7 +1034,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 999,
     backgroundColor: '#10213D',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(69,163,255,0.22)',
   },
   versionBadgeText: {
     color: '#8CCBFF',
@@ -800,8 +1049,13 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 38,
     backgroundColor: '#071A33',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(69,163,255,0.28)',
     overflow: 'hidden',
+    shadowColor: '#1E88FF',
+    shadowOpacity: 0.25,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8,
   },
   heroGlow: {
     position: 'absolute',
@@ -813,6 +1067,44 @@ function BottomTabs({ tab, setTab }) {
     right: -80,
     top: -70,
   },
+
+  techLineOne: {
+    position: 'absolute',
+    width: 220,
+    height: 1,
+    backgroundColor: 'rgba(93,183,255,0.28)',
+    right: -20,
+    top: 76,
+    transform: [{ rotate: '-18deg' }],
+  },
+  techLineTwo: {
+    position: 'absolute',
+    width: 180,
+    height: 1,
+    backgroundColor: 'rgba(93,183,255,0.18)',
+    left: -28,
+    bottom: 118,
+    transform: [{ rotate: '-18deg' }],
+  },
+  techDotOne: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#45A3FF',
+    right: 42,
+    top: 72,
+  },
+  techDotTwo: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#8CCBFF',
+    left: 34,
+    bottom: 114,
+  },
+
   eyebrow: {
     color: '#5DB7FF',
     fontSize: 14,
@@ -827,6 +1119,16 @@ function BottomTabs({ tab, setTab }) {
     fontWeight: '900',
     marginBottom: 14,
   },
+
+  heroAccent: {
+    color: '#60A5FA',
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginTop: -6,
+    marginBottom: 12,
+  },
+
   heroDesc: {
     color: '#B7BED3',
     fontSize: 15.5,
@@ -845,13 +1147,35 @@ function BottomTabs({ tab, setTab }) {
     gap: 12,
   },
 
-  primaryButton: {
-    backgroundColor: '#1E88FF',
-    borderRadius: 20,
+
+  secondaryFullButton: {
+    backgroundColor: 'rgba(30,136,255,0.14)',
+    borderRadius: 22,
     paddingVertical: 16,
     alignItems: 'center',
     marginHorizontal: 22,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.32)',
+  },
+  secondaryFullButtonText: {
+    color: '#8CCBFF',
+    fontWeight: '900',
+    fontSize: 15,
+  },
+
+  primaryButton: {
+    backgroundColor: '#1E88FF',
+    borderRadius: 22,
+    paddingVertical: 17,
+    alignItems: 'center',
+    marginHorizontal: 22,
     marginTop: 16,
+    shadowColor: '#1E88FF',
+    shadowOpacity: 0.38,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   primaryButtonFlex: {
     flex: 1,
@@ -867,7 +1191,7 @@ function BottomTabs({ tab, setTab }) {
     paddingVertical: 15,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(69,163,255,0.22)',
   },
   primaryButtonText: {
     color: '#FFFFFF',
@@ -908,7 +1232,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 28,
     backgroundColor: '#0B1B35',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   homeProductImage: {
     width: '100%',
@@ -936,6 +1260,102 @@ function BottomTabs({ tab, setTab }) {
     lineHeight: 18,
   },
 
+
+  assistNotice: {
+    marginHorizontal: 22,
+    marginTop: 18,
+    padding: 18,
+    borderRadius: 24,
+    backgroundColor: 'rgba(30,136,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.28)',
+  },
+  assistNoticeTitle: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 17,
+    marginBottom: 6,
+  },
+  assistNoticeText: {
+    color: '#CDEBFF',
+    lineHeight: 22,
+    fontSize: 14,
+  },
+  flowCard: {
+    marginHorizontal: 22,
+    marginBottom: 6,
+    padding: 16,
+    borderRadius: 26,
+    backgroundColor: 'rgba(16,33,61,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.2)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  flowItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  flowNumber: {
+    color: '#45A3FF',
+    fontWeight: '900',
+    fontSize: 12,
+    marginBottom: 5,
+  },
+  flowText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+
+
+  assistNotice: {
+    marginHorizontal: 22,
+    marginTop: 18,
+    padding: 18,
+    borderRadius: 24,
+    backgroundColor: 'rgba(30,136,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.28)',
+  },
+  assistNoticeTitle: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 17,
+    marginBottom: 6,
+  },
+  assistNoticeText: {
+    color: '#CDEBFF',
+    lineHeight: 22,
+    fontSize: 14,
+  },
+  flowCard: {
+    marginHorizontal: 22,
+    marginBottom: 6,
+    padding: 16,
+    borderRadius: 26,
+    backgroundColor: 'rgba(16,33,61,0.72)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.2)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  flowItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  flowNumber: {
+    color: '#45A3FF',
+    fontWeight: '900',
+    fontSize: 12,
+    marginBottom: 5,
+  },
+  flowText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+
   featureGrid: {
     marginHorizontal: 22,
     flexDirection: 'row',
@@ -948,7 +1368,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 24,
     backgroundColor: '#0B1B35',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   featureTitle: {
     color: '#FFFFFF',
@@ -969,7 +1389,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 30,
     backgroundColor: '#0B1B35',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   brandTitle: {
     color: '#FFFFFF',
@@ -990,7 +1410,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 30,
     backgroundColor: '#0B2A4A',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(69,163,255,0.22)',
   },
   supportTitle: {
     color: '#FFFFFF',
@@ -1022,32 +1442,45 @@ function BottomTabs({ tab, setTab }) {
 
   productCard: {
     marginHorizontal: 22,
-    marginBottom: 22,
-    borderRadius: 30,
-    backgroundColor: '#0B1B35',
+    marginBottom: 24,
+    borderRadius: 32,
+    backgroundColor: 'rgba(11,27,53,0.96)',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.24)',
+    shadowColor: '#1E88FF',
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
   },
   productHero: {
     width: '100%',
-    height: 230,
-    backgroundColor: '#101935',
+    height: 245,
+    backgroundColor: '#10213D',
   },
   productBody: {
     padding: 20,
   },
+
+  productTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+
   productName: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '900',
-    lineHeight: 29,
+    lineHeight: 31,
+    marginTop: 10,
   },
   seriesBadge: {
     alignSelf: 'flex-start',
-    marginTop: 12,
+    marginTop: 0,
     color: '#CDEBFF',
-    backgroundColor: '#0B2A4A',
+    backgroundColor: 'rgba(30,136,255,0.18)',
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
@@ -1071,7 +1504,7 @@ function BottomTabs({ tab, setTab }) {
     paddingVertical: 8,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   colorChipText: {
     color: '#CBD5E1',
@@ -1081,7 +1514,8 @@ function BottomTabs({ tab, setTab }) {
   detailLink: {
     color: '#8CCBFF',
     fontWeight: '900',
-    marginTop: 16,
+    marginTop: 18,
+    letterSpacing: 0.4,
   },
 
   backButton: {
@@ -1140,7 +1574,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 16,
     backgroundColor: '#10213D',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   colorSelectActive: {
     backgroundColor: '#1E88FF',
@@ -1201,7 +1635,7 @@ function BottomTabs({ tab, setTab }) {
     marginRight: 10,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
     backgroundColor: '#10213D',
   },
   thumbBoxActive: {
@@ -1232,7 +1666,7 @@ function BottomTabs({ tab, setTab }) {
     paddingVertical: 9,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   sceneChipText: {
     color: '#E5E7EB',
@@ -1244,7 +1678,7 @@ function BottomTabs({ tab, setTab }) {
     padding: 16,
     marginBottom: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   pointText: {
     color: '#FFFFFF',
@@ -1279,7 +1713,7 @@ function BottomTabs({ tab, setTab }) {
     backgroundColor: '#10213D',
     marginRight: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   quickChipActive: {
     backgroundColor: '#1E88FF',
@@ -1299,7 +1733,7 @@ function BottomTabs({ tab, setTab }) {
     backgroundColor: '#0B1B35',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   videoCover: {
     width: '100%',
@@ -1340,7 +1774,7 @@ function BottomTabs({ tab, setTab }) {
     overflow: 'hidden',
     backgroundColor: '#000000',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   player: {
     width: '100%',
@@ -1356,9 +1790,13 @@ function BottomTabs({ tab, setTab }) {
     alignSelf: 'flex-end',
     marginBottom: 12,
     backgroundColor: '#1E88FF',
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 16,
     maxWidth: '82%',
+    shadowColor: '#1E88FF',
+    shadowOpacity: 0.28,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
   },
   userBubbleText: {
     color: '#FFFFFF',
@@ -1368,12 +1806,12 @@ function BottomTabs({ tab, setTab }) {
   botBubble: {
     alignSelf: 'flex-start',
     marginBottom: 14,
-    backgroundColor: '#10213D',
-    borderRadius: 22,
+    backgroundColor: 'rgba(16,33,61,0.94)',
+    borderRadius: 24,
     padding: 16,
     maxWidth: '88%',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.22)',
   },
   botLabel: {
     color: '#45A3FF',
@@ -1384,33 +1822,79 @@ function BottomTabs({ tab, setTab }) {
     color: '#CBD5E1',
     lineHeight: 23,
   },
+
+  aiActionButton: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(30,136,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.32)',
+  },
+  aiActionButtonText: {
+    color: '#8CCBFF',
+    fontWeight: '900',
+    fontSize: 13,
+  },
+
   aiInputBar: {
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: 22,
     marginTop: 8,
     marginBottom: 18,
+    padding: 8,
+    borderRadius: 24,
+    backgroundColor: 'rgba(16,33,61,0.92)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.22)',
   },
   aiInput: {
     flex: 1,
-    backgroundColor: '#10213D',
+    backgroundColor: 'transparent',
     borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     color: '#FFFFFF',
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    marginRight: 8,
   },
   aiSendButton: {
     backgroundColor: '#1E88FF',
     borderRadius: 18,
     paddingHorizontal: 18,
     paddingVertical: 14,
+    shadowColor: '#1E88FF',
+    shadowOpacity: 0.45,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   aiSendText: {
     color: '#FFFFFF',
     fontWeight: '900',
+  },
+
+
+  bookingNotice: {
+    marginHorizontal: 22,
+    marginTop: 18,
+    padding: 18,
+    borderRadius: 24,
+    backgroundColor: 'rgba(30,136,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(69,163,255,0.28)',
+  },
+  bookingNoticeTitle: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  bookingNoticeText: {
+    color: '#CDEBFF',
+    lineHeight: 22,
+    fontSize: 14,
   },
 
   stepCard: {
@@ -1420,7 +1904,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 18,
     backgroundColor: '#0B1B35',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   stepTitle: {
     color: '#5DB7FF',
@@ -1442,7 +1926,7 @@ function BottomTabs({ tab, setTab }) {
     paddingVertical: 14,
     color: '#FFFFFF',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   textarea: {
     minHeight: 105,
@@ -1460,7 +1944,7 @@ function BottomTabs({ tab, setTab }) {
     marginRight: 12,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   productSelectCardActive: {
     backgroundColor: '#1E88FF',
@@ -1511,7 +1995,7 @@ function BottomTabs({ tab, setTab }) {
     borderRadius: 26,
     backgroundColor: '#10213D',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   legalItem: {
     marginBottom: 14,
@@ -1532,7 +2016,7 @@ function BottomTabs({ tab, setTab }) {
     alignItems: 'center',
     backgroundColor: '#10213D',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(69,163,255,0.16)',
   },
   phoneButtonText: {
     color: '#FFFFFF',
@@ -1545,27 +2029,34 @@ function BottomTabs({ tab, setTab }) {
     marginBottom: 45,
   },
 
+
+
   tabs: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
+    height: 88,
     flexDirection: 'row',
-    backgroundColor: '#060B1C',
+    backgroundColor: 'rgba(6,16,31,0.98)',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.06)',
-    paddingTop: 2,
-    paddingBottom: 22,
+    borderTopColor: 'rgba(69,163,255,0.18)',
+    paddingTop: 9,
+    paddingBottom: 18,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 54,
   },
   tabIcon: {
     color: '#64748B',
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: '900',
+    height: 24,
     marginBottom: 3,
+    textAlign: 'center',
   },
   tabIconActive: {
     color: '#8CCBFF',
@@ -1574,15 +2065,20 @@ function BottomTabs({ tab, setTab }) {
     color: '#64748B',
     fontSize: 11,
     fontWeight: '800',
+    textAlign: 'center',
   },
   tabTextActive: {
     color: '#FFFFFF',
   },
   tabDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
+    width: 22,
+    height: 4,
+    borderRadius: 999,
     backgroundColor: '#45A3FF',
-    marginTop: 5,
+    marginTop: 6,
+    shadowColor: '#45A3FF',
+    shadowOpacity: 0.7,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 0 },
   },
 });

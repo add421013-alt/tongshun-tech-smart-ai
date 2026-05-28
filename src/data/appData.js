@@ -11,7 +11,7 @@ export const appInfo = {
 
 export const logo = require('../../assets/app/logo/logo.png');
 
-export const aiQuickQuestions = [
+export const oldAiQuickQuestions = [
   ['這個 App 是做什麼的？', '這是統順 Tech Smart AI 的智慧眼鏡產品展示與服務 App，提供產品介紹、教學影片、AI 問答、客服導流與預約了解功能。'],
   ['我要怎麼選款式？', '日常通勤可優先看 TBI1001/TBI1002；商務與正式場合可優先看 TBM1003/TBM1004。'],
   ['可以直接購買嗎？', '第一版 App 先不顯示售價，主要以產品介紹、預約了解與專人服務為主。'],
@@ -239,3 +239,4 @@ export const videos = [
     video: require('../../assets/app/videos/temple.mp4'),
   },
 ];
+export { aiQuickQuestions } from './aiKnowledge';

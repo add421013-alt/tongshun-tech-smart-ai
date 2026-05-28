@@ -4,12 +4,12 @@
     "slug": "tongshun-tech-smart-ai",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app/logo/app-icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/app/logo/app-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#050816"
+      "backgroundColor": "#06101F"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -26,8 +26,8 @@
       "package": "com.tongshun.timbrightai",
       "versionCode": 1,
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#050816"
+        "foregroundImage": "./assets/app/logo/app-icon.png",
+        "backgroundColor": "#06101F"
       }
     },
     "web": {
